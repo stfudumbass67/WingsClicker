@@ -14,6 +14,8 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.ComponentModel;
 
 public class WingsClicker : Microsoft.Build.Framework.ITask
 {
@@ -34,103 +36,314 @@ public class WingsClicker : Microsoft.Build.Framework.ITask
     const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
     const uint MOUSEEVENTF_RIGHTUP = 0x0010;
 
-    class WingsForm : Form
+    public class WingsForm : Form
     {
         private bool isClicking = false;
         private Thread clickThread;
         private int clickCount = 0;
         private System.Windows.Forms.Timer cpsTimer;
+        private System.Windows.Forms.Timer glowTimer;
+        private float glowIntensity = 0;
+        private bool glowDirection = true;
+        
         private Label cpsDisplay;
         private Button startStopBtn;
-        private NumericUpDown cpsControl;
+        private TrackBar cpsSlider;
+        private Label cpsValueLabel;
         private Label statusLabel;
+        private Panel headerPanel;
+        private Panel glowPanel;
+        
+        // Colori moderni
+        private Color primaryColor = Color.FromArgb(88, 86, 214);
+        private Color secondaryColor = Color.FromArgb(255, 159, 28);
+        private Color darkBg = Color.FromArgb(18, 18, 24);
+        private Color cardBg = Color.FromArgb(28, 28, 35);
 
         public WingsForm()
         {
-            this.Text = "WINGS CLICKER";
-            this.Size = new Size(450, 350);
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = Color.White;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
+            InitializeComponent();
+            ApplyModernStyling();
+            StartGlowAnimation();
+        }
 
-            Label title = new Label()
+        private void InitializeComponent()
+        {
+            this.Text = "WINGS CLICKER PRO";
+            this.Size = new Size(520, 520);
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.BackColor = darkBg;
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.DoubleBuffered = true;
+            
+            // Header con gradiente
+            headerPanel = new Panel()
+            {
+                Dock = DockStyle.Top,
+                Height = 80,
+                BackColor = primaryColor
+            };
+            
+            Label titleLabel = new Label()
             {
                 Text = "WINGS CLICKER",
-                Font = new Font("Segoe UI", 22, FontStyle.Bold),
-                ForeColor = Color.FromArgb(80, 80, 100),
-                Location = new Point(100, 20),
-                Size = new Size(250, 50),
-                TextAlign = ContentAlignment.MiddleCenter
+                Font = new Font("Inter", 24, FontStyle.Bold),
+                ForeColor = Color.White,
+                Location = new Point(30, 25),
+                Size = new Size(280, 40),
+                BackColor = Color.Transparent
             };
-
-            Label cpsLabel = new Label()
+            
+            Label versionLabel = new Label()
             {
-                Text = "CPS:",
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                Location = new Point(50, 100),
-                Size = new Size(60, 25)
+                Text = "BLATANT MODE v2.0",
+                Font = new Font("Inter", 9, FontStyle.Regular),
+                ForeColor = Color.FromArgb(220, 220, 255),
+                Location = new Point(35, 55),
+                Size = new Size(150, 20),
+                BackColor = Color.Transparent
             };
-
-            cpsControl = new NumericUpDown()
+            
+            Button closeBtn = new Button()
             {
-                Location = new Point(120, 98),
-                Size = new Size(80, 25),
-                Minimum = 1,
-                Maximum = 50,
-                Value = 20
+                Text = "✕",
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                FlatStyle = FlatStyle.Flat,
+                Size = new Size(35, 35),
+                Location = new Point(470, 22),
+                Cursor = Cursors.Hand
             };
-
+            closeBtn.FlatAppearance.BorderSize = 0;
+            closeBtn.Click += (s, e) => this.Close();
+            
+            headerPanel.Controls.Add(titleLabel);
+            headerPanel.Controls.Add(versionLabel);
+            headerPanel.Controls.Add(closeBtn);
+            
+            // Glow panel per effetto luce
+            glowPanel = new Panel()
+            {
+                Size = new Size(300, 300),
+                Location = new Point(110, 150),
+                BackColor = Color.Transparent
+            };
+            
+            // Card container
+            Panel cardPanel = new Panel()
+            {
+                BackColor = cardBg,
+                Size = new Size(440, 320),
+                Location = new Point(40, 100),
+                BorderStyle = BorderStyle.None
+            };
+            
+            // CPS Display circolare
+            Panel cpsCircle = new Panel()
+            {
+                Size = new Size(120, 120),
+                Location = new Point(160, 20),
+                BackColor = Color.FromArgb(38, 38, 48),
+                BorderStyle = BorderStyle.None
+            };
+            
             cpsDisplay = new Label()
             {
-                Text = "CPS: 0",
-                Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                ForeColor = Color.FromArgb(220, 80, 80),
-                Location = new Point(230, 98),
-                Size = new Size(100, 25),
-                TextAlign = ContentAlignment.MiddleLeft
+                Text = "0",
+                Font = new Font("Inter", 32, FontStyle.Bold),
+                ForeColor = primaryColor,
+                Location = new Point(25, 35),
+                Size = new Size(70, 50),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent
             };
-
+            
+            Label cpsLabel = new Label()
+            {
+                Text = "CLICKS/SEC",
+                Font = new Font("Inter", 8, FontStyle.Bold),
+                ForeColor = Color.FromArgb(150, 150, 170),
+                Location = new Point(15, 85),
+                Size = new Size(90, 15),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent
+            };
+            
+            cpsCircle.Controls.Add(cpsDisplay);
+            cpsCircle.Controls.Add(cpsLabel);
+            
+            // CPS Slider moderno
+            Label sliderLabel = new Label()
+            {
+                Text = "TARGET CPS",
+                Font = new Font("Inter", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(200, 200, 220),
+                Location = new Point(40, 160),
+                Size = new Size(100, 20)
+            };
+            
+            cpsSlider = new TrackBar()
+            {
+                Minimum = 1,
+                Maximum = 50,
+                Value = 20,
+                Location = new Point(40, 185),
+                Size = new Size(360, 45),
+                BackColor = Color.Transparent,
+                TickStyle = TickStyle.None,
+                Cursor = Cursors.Hand
+            };
+            
+            cpsValueLabel = new Label()
+            {
+                Text = "20 CPS",
+                Font = new Font("Inter", 14, FontStyle.Bold),
+                ForeColor = secondaryColor,
+                Location = new Point(360, 155),
+                Size = new Size(80, 30),
+                TextAlign = ContentAlignment.MiddleRight
+            };
+            
+            cpsSlider.ValueChanged += (s, e) => {
+                cpsValueLabel.Text = cpsSlider.Value + " CPS";
+            };
+            
+            // Start/Stop Button moderno
             startStopBtn = new Button()
             {
-                Text = "START CLICKING",
-                Location = new Point(100, 160),
-                Size = new Size(250, 45),
-                BackColor = Color.FromArgb(255, 200, 200),
-                ForeColor = Color.FromArgb(80, 40, 40),
-                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                Text = "ACTIVATE BLATANT MODE",
+                Font = new Font("Inter", 11, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = primaryColor,
+                Size = new Size(280, 50),
+                Location = new Point(80, 245),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
-            startStopBtn.FlatAppearance.BorderSize = 1;
-            startStopBtn.FlatAppearance.BorderColor = Color.FromArgb(200, 120, 120);
+            startStopBtn.FlatAppearance.BorderSize = 0;
             startStopBtn.Click += StartStopClick;
-
+            
+            // Status
             statusLabel = new Label()
             {
-                Text = "STATUS: INACTIVE",
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                ForeColor = Color.Gray,
-                Location = new Point(140, 230),
-                Size = new Size(170, 25),
+                Text = "STANDBY",
+                Font = new Font("Inter", 9, FontStyle.Bold),
+                ForeColor = Color.FromArgb(150, 150, 170),
+                Location = new Point(180, 310),
+                Size = new Size(160, 25),
                 TextAlign = ContentAlignment.MiddleCenter
             };
-
-            Label hotkeyInfo = new Label()
+            
+            // Hotkey info
+            Label hotkeyLabel = new Label()
             {
-                Text = "HOTKEY: F6 to Start/Stop | ESC to Exit",
-                Font = new Font("Segoe UI", 8),
-                ForeColor = Color.FromArgb(150, 150, 150),
-                Location = new Point(90, 280),
-                Size = new Size(270, 20),
+                Text = "F6 • START/STOP     ESC • EXIT",
+                Font = new Font("Inter", 8, FontStyle.Regular),
+                ForeColor = Color.FromArgb(100, 100, 120),
+                Location = new Point(130, 345),
+                Size = new Size(260, 20),
                 TextAlign = ContentAlignment.MiddleCenter
             };
-
-            this.Controls.AddRange(new Control[] { title, cpsLabel, cpsControl, cpsDisplay, startStopBtn, statusLabel, hotkeyInfo });
+            
+            cardPanel.Controls.Add(cpsCircle);
+            cardPanel.Controls.Add(sliderLabel);
+            cardPanel.Controls.Add(cpsSlider);
+            cardPanel.Controls.Add(cpsValueLabel);
+            cardPanel.Controls.Add(startStopBtn);
+            cardPanel.Controls.Add(statusLabel);
+            cardPanel.Controls.Add(hotkeyLabel);
+            
+            this.Controls.Add(headerPanel);
+            this.Controls.Add(glowPanel);
+            this.Controls.Add(cardPanel);
+            
             this.KeyPreview = true;
             this.KeyDown += Form_KeyDown;
+            
+            // Paint per effetti
+            this.Paint += Form_Paint;
+            cardPanel.Paint += CardPanel_Paint;
+            
+            // Arrotonda angoli
+            RoundCorners(headerPanel, 0, 0, 15, 15);
+            RoundCorners(cardPanel, 15, 15, 15, 15);
+            RoundCorners(cpsCircle, 60, 60, 60, 60);
         }
-
+        
+        private void RoundCorners(Control control, int radiusTL, int radiusTR, int radiusBL, int radiusBR)
+        {
+            System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath();
+            path.AddArc(0, 0, radiusTL * 2, radiusTL * 2, 180, 90);
+            path.AddArc(control.Width - radiusTR * 2, 0, radiusTR * 2, radiusTR * 2, 270, 90);
+            path.AddArc(control.Width - radiusBR * 2, control.Height - radiusBR * 2, radiusBR * 2, radiusBR * 2, 0, 90);
+            path.AddArc(0, control.Height - radiusBL * 2, radiusBL * 2, radiusBL * 2, 90, 90);
+            path.CloseFigure();
+            control.Region = new Region(path);
+        }
+        
+        private void ApplyModernStyling()
+        {
+            using (GraphicsPath path = new GraphicsPath())
+            {
+                path.AddArc(0, 0, 20, 20, 180, 90);
+                path.AddArc(this.Width - 20, 0, 20, 20, 270, 90);
+                path.AddArc(this.Width - 20, this.Height - 20, 20, 20, 0, 90);
+                path.AddArc(0, this.Height - 20, 20, 20, 90, 90);
+                path.CloseFigure();
+                this.Region = new Region(path);
+            }
+        }
+        
+        private void Form_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            
+            // Glow effect dietro il pulsante
+            int glowSize = (int)(200 + glowIntensity * 80);
+            using (GraphicsPath path = new GraphicsPath())
+            {
+                path.AddEllipse(this.Width/2 - glowSize/2, 300 - glowSize/4, glowSize, glowSize);
+                using (PathGradientBrush pgb = new PathGradientBrush(path))
+                {
+                    pgb.CenterColor = Color.FromArgb((int)(40 * glowIntensity), primaryColor);
+                    pgb.SurroundColors = new Color[] { Color.FromArgb(0, primaryColor) };
+                    g.FillPath(pgb, path);
+                }
+            }
+        }
+        
+        private void CardPanel_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            
+            // Bordo sottile luminoso
+            using (Pen pen = new Pen(Color.FromArgb(60, primaryColor), 1))
+            {
+                g.DrawRectangle(pen, 0, 0, 439, 319);
+            }
+        }
+        
+        private void StartGlowAnimation()
+        {
+            glowTimer = new System.Windows.Forms.Timer();
+            glowTimer.Interval = 50;
+            glowTimer.Tick += (s, e) => {
+                if (glowDirection)
+                    glowIntensity += 0.08f;
+                else
+                    glowIntensity -= 0.08f;
+                    
+                if (glowIntensity >= 1.0f) glowDirection = false;
+                if (glowIntensity <= 0.3f) glowDirection = true;
+                
+                this.Invalidate();
+            };
+            glowTimer.Start();
+        }
+        
         private void PerformClick()
         {
             mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
@@ -138,78 +351,72 @@ public class WingsClicker : Microsoft.Build.Framework.ITask
             mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
             Interlocked.Increment(ref clickCount);
         }
-
+        
         private void ClickLoop()
         {
-            int delay = (int)(1000 / cpsControl.Value);
+            int delay = (int)(1000 / cpsSlider.Value);
             while (isClicking)
             {
                 PerformClick();
                 Thread.Sleep(delay);
             }
         }
-
+        
         private void StartStopClick(object sender, EventArgs e)
         {
             ToggleClicker();
         }
-
+        
         private void Form_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.F6)
-            {
                 ToggleClicker();
-            }
             else if (e.KeyCode == Keys.Escape)
-            {
-                if (isClicking) ToggleClicker();
                 this.Close();
-            }
         }
-
+        
         private void ToggleClicker()
         {
             isClicking = !isClicking;
-
+            
             if (isClicking)
             {
-                statusLabel.Text = "STATUS: ACTIVE";
-                statusLabel.ForeColor = Color.Green;
-                startStopBtn.Text = "STOP CLICKING";
-                startStopBtn.BackColor = Color.FromArgb(255, 100, 100);
-                startStopBtn.ForeColor = Color.White;
-                cpsControl.Enabled = false;
-
+                statusLabel.Text = "BLATANT MODE ACTIVE";
+                statusLabel.ForeColor = secondaryColor;
+                startStopBtn.Text = "DEACTIVATE";
+                startStopBtn.BackColor = Color.FromArgb(220, 70, 70);
+                cpsSlider.Enabled = false;
+                
                 clickCount = 0;
                 cpsTimer = new System.Windows.Forms.Timer();
                 cpsTimer.Interval = 1000;
                 cpsTimer.Tick += (s, ev) => {
-                    cpsDisplay.Text = "CPS: " + clickCount;
+                    cpsDisplay.Text = clickCount.ToString();
                     clickCount = 0;
                 };
                 cpsTimer.Start();
-
+                
                 clickThread = new Thread(ClickLoop);
                 clickThread.IsBackground = true;
                 clickThread.Start();
             }
             else
             {
-                statusLabel.Text = "STATUS: INACTIVE";
-                statusLabel.ForeColor = Color.Gray;
-                startStopBtn.Text = "START CLICKING";
-                startStopBtn.BackColor = Color.FromArgb(255, 200, 200);
-                startStopBtn.ForeColor = Color.FromArgb(80, 40, 40);
-                cpsControl.Enabled = true;
-
+                statusLabel.Text = "STANDBY";
+                statusLabel.ForeColor = Color.FromArgb(150, 150, 170);
+                startStopBtn.Text = "ACTIVATE BLATANT MODE";
+                startStopBtn.BackColor = primaryColor;
+                cpsSlider.Enabled = true;
+                
                 if (cpsTimer != null) cpsTimer.Stop();
                 if (clickThread != null && clickThread.IsAlive) clickThread.Join(100);
             }
         }
-
+        
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             isClicking = false;
+            glowTimer?.Stop();
             base.OnFormClosing(e);
         }
     }
