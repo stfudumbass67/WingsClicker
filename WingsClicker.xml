@@ -14,24 +14,25 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using System.Drawing;
-using Microsoft.Build.Framework;
-using Microsoft.Build.Utilities;
 
-public class WingsClicker : Task
+public class WingsClicker : Microsoft.Build.Framework.ITask
 {
-    [DllImport("user32.dll")]
-    static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
+    public Microsoft.Build.Framework.IBuildEngine BuildEngine { get; set; }
+    public Microsoft.Build.Framework.ITaskHost HostObject { get; set; }
 
-    const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
-    const uint MOUSEEVENTF_RIGHTUP = 0x0010;
-
-    public override bool Execute()
+    public bool Execute()
     {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.Run(new WingsForm());
         return true;
     }
+
+    [DllImport("user32.dll")]
+    static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+
+    const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+    const uint MOUSEEVENTF_RIGHTUP = 0x0010;
 
     class WingsForm : Form
     {
@@ -43,153 +44,107 @@ public class WingsClicker : Task
         private Button startStopBtn;
         private NumericUpDown cpsControl;
         private Label statusLabel;
-        private TrackBar intensityBar;
-        private Label intensityLabel;
 
         public WingsForm()
         {
             this.Text = "WINGS CLICKER";
-            this.Size = new Size(500, 420);
+            this.Size = new Size(450, 350);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = Color.White;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
 
-            // Titolo
             Label title = new Label()
             {
-                Text = "🕊️ WINGS CLICKER",
+                Text = "WINGS CLICKER",
                 Font = new Font("Segoe UI", 22, FontStyle.Bold),
-                ForeColor = Color.FromArgb(70, 70, 100),
+                ForeColor = Color.FromArgb(80, 80, 100),
                 Location = new Point(100, 20),
-                Size = new Size(300, 50),
+                Size = new Size(250, 50),
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
-            // CPS Control
             Label cpsLabel = new Label()
             {
-                Text = "CPS TARGET:",
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Location = new Point(50, 90),
-                Size = new Size(100, 25)
+                Text = "CPS:",
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Location = new Point(50, 100),
+                Size = new Size(60, 25)
             };
 
             cpsControl = new NumericUpDown()
             {
-                Location = new Point(160, 88),
+                Location = new Point(120, 98),
                 Size = new Size(80, 25),
                 Minimum = 1,
                 Maximum = 50,
                 Value = 20
             };
 
-            // Intensity Slider
-            intensityLabel = new Label()
-            {
-                Text = "INTENSITY:",
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Location = new Point(50, 140),
-                Size = new Size(100, 25)
-            };
-
-            intensityBar = new TrackBar()
-            {
-                Location = new Point(160, 130),
-                Size = new Size(250, 45),
-                Minimum = 1,
-                Maximum = 10,
-                Value = 5,
-                TickStyle = TickStyle.BottomRight
-            };
-
-            // CPS Display
             cpsDisplay = new Label()
             {
-                Text = "📊 CPS: 0",
-                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                Text = "CPS: 0",
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.FromArgb(220, 80, 80),
-                Location = new Point(320, 85),
-                Size = new Size(130, 35),
+                Location = new Point(230, 98),
+                Size = new Size(100, 25),
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
-            // Start/Stop Button
             startStopBtn = new Button()
             {
-                Text = "🔥 START CLICKING",
-                Location = new Point(100, 200),
-                Size = new Size(300, 50),
+                Text = "START CLICKING",
+                Location = new Point(100, 160),
+                Size = new Size(250, 45),
                 BackColor = Color.FromArgb(255, 200, 200),
                 ForeColor = Color.FromArgb(80, 40, 40),
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
             };
             startStopBtn.FlatAppearance.BorderSize = 1;
             startStopBtn.FlatAppearance.BorderColor = Color.FromArgb(200, 120, 120);
             startStopBtn.Click += StartStopClick;
 
-            // Status Label
             statusLabel = new Label()
             {
-                Text = "⚪ STATUS: INACTIVE",
+                Text = "STATUS: INACTIVE",
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
                 ForeColor = Color.Gray,
-                Location = new Point(150, 270),
-                Size = new Size(200, 25),
+                Location = new Point(140, 230),
+                Size = new Size(170, 25),
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
-            // Hotkey Info
             Label hotkeyInfo = new Label()
             {
-                Text = "💡 HOTKEY: F6 to Start/Stop | ESC to Exit",
-                Font = new Font("Segoe UI", 9),
-                ForeColor = Color.FromArgb(150, 150, 150),
-                Location = new Point(100, 320),
-                Size = new Size(300, 25),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-
-            Label credit = new Label()
-            {
-                Text = "© Wings Clicker - Blatant Mode",
+                Text = "HOTKEY: F6 to Start/Stop | ESC to Exit",
                 Font = new Font("Segoe UI", 8),
-                ForeColor = Color.FromArgb(180, 180, 180),
-                Location = new Point(150, 350),
-                Size = new Size(200, 20),
+                ForeColor = Color.FromArgb(150, 150, 150),
+                Location = new Point(90, 280),
+                Size = new Size(270, 20),
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
-            this.Controls.AddRange(new Control[] { title, cpsLabel, cpsControl, intensityLabel, intensityBar, cpsDisplay, startStopBtn, statusLabel, hotkeyInfo, credit });
+            this.Controls.AddRange(new Control[] { title, cpsLabel, cpsControl, cpsDisplay, startStopBtn, statusLabel, hotkeyInfo });
             this.KeyPreview = true;
             this.KeyDown += Form_KeyDown;
         }
 
         private void PerformClick()
         {
-            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0);
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
             Thread.Sleep(5);
-            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
             Interlocked.Increment(ref clickCount);
         }
 
         private void ClickLoop()
         {
             int delay = (int)(1000 / cpsControl.Value);
-            int intensity = intensityBar.Value;
-
             while (isClicking)
             {
                 PerformClick();
-                
-                // Se intensità alta, fa doppio click
-                if (intensity > 7)
-                {
-                    Thread.Sleep(5);
-                    PerformClick();
-                }
-                
                 Thread.Sleep(delay);
             }
         }
@@ -218,19 +173,18 @@ public class WingsClicker : Task
 
             if (isClicking)
             {
-                statusLabel.Text = "🟢 STATUS: CLICKING ACTIVE";
+                statusLabel.Text = "STATUS: ACTIVE";
                 statusLabel.ForeColor = Color.Green;
-                startStopBtn.Text = "🛑 STOP CLICKING";
+                startStopBtn.Text = "STOP CLICKING";
                 startStopBtn.BackColor = Color.FromArgb(255, 100, 100);
                 startStopBtn.ForeColor = Color.White;
                 cpsControl.Enabled = false;
-                intensityBar.Enabled = false;
 
                 clickCount = 0;
                 cpsTimer = new System.Windows.Forms.Timer();
                 cpsTimer.Interval = 1000;
                 cpsTimer.Tick += (s, ev) => {
-                    cpsDisplay.Text = "📊 CPS: " + clickCount;
+                    cpsDisplay.Text = "CPS: " + clickCount;
                     clickCount = 0;
                 };
                 cpsTimer.Start();
@@ -241,13 +195,12 @@ public class WingsClicker : Task
             }
             else
             {
-                statusLabel.Text = "⚪ STATUS: INACTIVE";
+                statusLabel.Text = "STATUS: INACTIVE";
                 statusLabel.ForeColor = Color.Gray;
-                startStopBtn.Text = "🔥 START CLICKING";
+                startStopBtn.Text = "START CLICKING";
                 startStopBtn.BackColor = Color.FromArgb(255, 200, 200);
                 startStopBtn.ForeColor = Color.FromArgb(80, 40, 40);
                 cpsControl.Enabled = true;
-                intensityBar.Enabled = true;
 
                 if (cpsTimer != null) cpsTimer.Stop();
                 if (clickThread != null && clickThread.IsAlive) clickThread.Join(100);
